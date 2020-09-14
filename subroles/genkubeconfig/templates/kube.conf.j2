@@ -1,0 +1,19 @@
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: {{ca | b64encode }}
+    server: {{server}}
+  name: {{kubernetes_label}}
+contexts:
+- context:
+    cluster: {{kubernetes_label}}
+    user: {{username}}
+  name: default
+current-context: default
+kind: Config
+preferences: {}
+users:
+- name: {{ username }}
+  user:
+    client-certificate-data: {{ client_cert| b64encode }}
+    client-key-data: {{ client_key | b64encode }}

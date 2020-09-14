@@ -1,0 +1,19 @@
+---
+kubernetes_version: 1.19.1
+
+genkubessl_version: 0.0.8
+gencrt_version: 0.0.8
+
+containerd_version: 1.4.0
+crictl_version: 1.19.0
+runc_version: 1.0.0-rc92
+etcd_version: 3.4.3-0
+
+
+getbin_url: https://github.com/stefan-kiss/getbin/releases/download/v{{version}}/getbin-{{os}}-{{arch}}
+getbin_version: 0.0.1-alpha
+getbin_sha512:
+    darwin:
+        amd64: 5fce7e524ed4d33e4ece16e5f4992ce4499cc300a321fc27aa8dddc50ad2a309769e9ca7f1bde9ea7751aa609201539aa3a8442cb8c0183464cd683b6a2a4d44
+    linux:
+        amd64: e5a4806ce668e41981e6fad56e0a3dd9d979d4ee0fabc86312a5c02e25c8b5f7d51c4e310197e32134d8ea0fc399430a0c52db3f0263319ca546a19b06e9ab79

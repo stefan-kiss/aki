@@ -1,0 +1,87 @@
+---
+- name: Upload binaries from cache
+  synchronize:
+    src: "{{ GLOBAL_CACHE_PATH }}/{{ item }}/./"
+    dest: /{{item}}/
+    mode: push
+    archive: false
+    checksum: true
+    times: no
+    delete: no
+    recursive: yes
+    group: no
+    owner: no
+    use_ssh_args: true
+  loop:
+    - bin
+    - usr/local/bin
+  register: upload_bin
+  notify:
+    - restart containerd
+
+- name: kubernetes directories
+  file:
+    path: "{{item}}"
+    state: directory
+    mode: 0600
+  loop:
+    - /etc/kubernetes
+    - /etc/kubernetes/manifests
+    - /etc/kubernetes/pki
+    - /etc/cni/net.d
+    - /opt/cni/bin
+    - /var/lib/kubelet
+    - /var/lib/kubelet/pki
+    - /var/lib/kubernetes
+    - /var/run/kubernetes
+    - /etc/containerd
+
+- name: Containerd config file /etc/containerd/config.toml
+  template:
+    src: etc/containerd/config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart containerd"
+
+- name: Containerd systemd service file
+  template:
+    src: etc/systemd/system/containerd.service.j2
+    dest: /etc/systemd/system/containerd.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart containerd"
+
+- name: Containerd service
+  systemd:
+    name: containerd
+    state: started
+    enabled: yes
+
+- name: Crictl config file /etc/crictl.yaml
+  template:
+    src: etc/crictl.yaml.j2
+    dest: /etc/crictl.yaml
+    owner: root
+    group: root
+    mode: 0644
+
+- name: template /etc/systemd/system/containerd
+  template:
+    src: etc/systemd/system/containerd.service.j2
+    dest: /etc/systemd/system/containerd.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart containerd"
+
+- meta: flush_handlers
+
+- name: Service containerd
+  systemd:
+    name: containerd
+    state: started
+    enabled: yes
+

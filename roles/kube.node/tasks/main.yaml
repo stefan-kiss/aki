@@ -1,0 +1,75 @@
+---
+- name: copy ca
+  copy:
+      src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/{{item}}"
+      dest: "/etc/kubernetes/pki/{{item}}"
+      owner: root
+      group: root
+      mode: 0600
+  loop:
+      - ca.crt
+      
+- name: copy ca
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/{{item}}"
+    dest: "/etc/kubernetes/pki/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - ca.crt
+
+- name: copy certs kubelet
+  copy:
+    src: "{{ NODES_CACHE_PATH }}/{{inventory_hostname}}/var/lib/kubelet/pki/{{item}}"
+    dest: "/var/lib/kubelet/pki"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - kubelet.crt
+    - kubelet.key
+  notify: "restart kubelet"
+
+
+- name: copy kubelet kubeconfig
+  copy:
+    src: "{{ NODES_CACHE_PATH }}/{{inventory_hostname}}/etc/kubernetes/kubelet.conf"
+    dest: "/etc/kubernetes/kubelet.conf"
+    owner: root
+    group: root
+    mode: 0600
+  notify: "restart kubelet"
+
+
+- name: template /var/lib/kubelet/kubelet-config.yaml
+  template:
+    src: var/lib/kubelet/config.yaml.j2
+    dest: /var/lib/kubelet/config.yaml
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart kubelet"
+
+
+- name: Set Taints Generic
+  set_fact:
+    NODE_TAINTS: []
+
+
+- name: template /etc/systemd/system/kubelet.service
+  template:
+    src: etc/systemd/system/kubelet.service.j2
+    dest: /etc/systemd/system/kubelet.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart kubelet"
+  vars:
+    taints: "{{NODE_TAINTS}}"
+
+- name: make sure all services are up
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes

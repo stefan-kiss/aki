@@ -1,0 +1,14 @@
+kubernetes_label: kubernetes
+kubernetes_internal_dns: cluster.local
+kubernetes_cluster_ip_cidr: 10.251.0.0/23
+kubernetes_pod_range_cidr: 10.252.0.0/16
+kubernetes_pod_mask: 24
+kubernetes_dns_offset: 10
+kubernetes_overlay_network: cilium
+kubernetes_version: 1.19.0
+kubernetes_api_dns: kapi.kubernetes.local
+kubernetes_ingress_dns: ingress.kubernetes.local
+kubernetes_api_additional_ips:
+  - 10.250.0.10
+  - 192.168.1.50
+

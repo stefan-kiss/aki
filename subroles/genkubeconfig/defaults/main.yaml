@@ -1,0 +1,5 @@
+---
+read_base: "{{GLOBAL_CACHE_PATH}}"
+write_base: "{{read_base}}"
+ca_read_base: "{{read_base}}"
+ca_path: '/etc/kubernetes/pki/ca.crt'

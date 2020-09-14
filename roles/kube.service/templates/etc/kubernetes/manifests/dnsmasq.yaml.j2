@@ -1,0 +1,36 @@
+#jinja2: lstrip_blocks: 'True'
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    component: dnsmasq
+  name: dnsmasq
+  namespace: kube-system
+spec:
+  containers:
+  - image: andyshinn/dnsmasq:2.81
+    command:
+      - dnsmasq
+      - -k
+      - --server=8.8.8.8
+      - --listen-address={{private_ip}}
+      - --bind-interfaces
+      - --except-interface=lo
+      - --address=/{{kubernetes_internal_dns}}/{{private_ip}}
+      {% for host in groups['master'] %}
+      - --address=/{{ host }}/{{ hostvars[host]['private_ip'] }}
+      {% endfor %}
+      {% for host in groups['node'] %}
+      - --address=/{{ host }}/{{ hostvars[host]['private_ip'] }}
+      {% endfor %}
+      {% for host in groups['service'] %}
+      - --address=/{{ host }}/{{ hostvars[host]['private_ip'] }}
+      {% endfor %}
+    hostNetwork: true
+    imagePullPolicy: IfNotPresent
+    name: dnsmasq
+    resources:
+      requests:
+        cpu: 250m
+  hostNetwork: true
+  priorityClassName: system-cluster-critical

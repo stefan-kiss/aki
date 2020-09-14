@@ -1,0 +1,102 @@
+- name: Gather minimal facts
+  setup:
+    gather_subset: "!all"
+
+- name: Gather necessary facts
+  setup:
+    gather_subset: "!all,!min,network,hardware"
+    filter: "{{ item }}"
+  loop:
+    - ansible_distribution_major_version
+    - ansible_default_ipv4
+    - ansible_all_ipv4_addresses
+    - ansible_memtotal_mb
+    - ansible_swaptotal_mb
+
+- name: Download getbin
+  # This must always be called, to check if the checksum matches. On no-match the file is re-downloaded.
+  get_url:
+    url: "{{ getbin_url }}"
+    dest: "{{ LOCAL_BIN_PATH }}/getbin"
+    # owner: "{{ omit if download_localhost else (download.owner | default(omit)) }}"
+    mode: 0755
+    checksum: "{{ 'sha512:' + getbin_sha512[ansible_system|lower]['amd64'] }}"
+    # validate_certs: "{{ download_validate_certs }}"
+    # url_username: "{{ download.username | default(omit) }}"
+    # url_password: "{{ download.password | default(omit) }}"
+    # force_basic_auth: "{{ download.force_basic_auth | default(omit) }}"
+#   run_once: "{{ download_force_cache }}"
+  register: get_url_result
+#   become: "{{ not download_localhost }}"
+  until: "'OK' in get_url_result.msg or 'file already exists' in get_url_result.msg"
+  retries: 4
+  delay: "2"
+  vars:
+    os: "{{ansible_system|lower}}"
+    version: "{{getbin_version}}"
+    arch: amd64
+
+- name: Write getbin config file
+  copy:
+      dest: "{{LOCAL_BIN_PATH}}/sources.yaml"
+      src: files/sources.yaml
+
+- name: Download genkubessl
+  shell: "{{ LOCAL_BIN_PATH }}/getbin \
+    -R {{LOCAL_BIN_PATH}} \
+    -C {{DOWNLOADER_CACHE_PATH}}
+    -S {{ LOCAL_BIN_PATH }}/sources.yaml
+    get \
+    -l genkubessl \
+    -V {{genkubessl_version}} \
+    -o {{ansible_system|lower}} \
+    -a amd64"
+  register: download
+  changed_when: "'Copied file to' in download.stderr"
+
+- name: Download gencrt
+  shell: "{{ LOCAL_BIN_PATH }}/getbin \
+    -R {{LOCAL_BIN_PATH}} \
+    -C {{DOWNLOADER_CACHE_PATH}}
+    -S {{ LOCAL_BIN_PATH }}/sources.yaml
+    get \
+    -l gencrt \
+    -V {{gencrt_version}} \
+    -o {{ansible_system|lower}} \
+    -a amd64"
+  register: download
+  changed_when: "'Copied file to' in download.stderr"
+
+- name: Download local kubectl
+  shell: "{{ LOCAL_BIN_PATH }}/getbin \
+    -R {{LOCAL_BIN_PATH}} \
+    -C {{DOWNLOADER_CACHE_PATH}}
+    -S {{ LOCAL_BIN_PATH }}/sources.yaml
+    get \
+    -l kubeclient \
+    -V {{kubernetes_version}} \
+    -o {{ansible_system|lower}} \
+    -a amd64"
+  register: download
+  changed_when: "'Copied file to' in download.stderr"
+
+- name: Local cache for {{item.key}}
+  shell: "{{ LOCAL_BIN_PATH }}/getbin \
+    -R {{GLOBAL_CACHE_PATH}} \
+    -C {{DOWNLOADER_CACHE_PATH}}
+    -S {{ LOCAL_BIN_PATH }}/sources.yaml
+    get \
+    -l {{item.key}} \
+    -V {{item.value}} \
+    -o linux \
+    -a amd64"
+  register: download
+  changed_when: "'Copied file to' in download.stderr"
+  with_dict: 
+    kubeclient: "{{kubernetes_version}}"
+    kubenode: "{{kubernetes_version}}"
+    containerd: "{{containerd_version}}"
+    crictl: "{{crictl_version}}"
+    runc: "{{runc_version}}"
+
+- include: certificates.yml

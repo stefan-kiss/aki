@@ -1,0 +1,16 @@
+---
+- name: Copy Kubernetes CA
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/ca.crt"
+    dest: /usr/local/share/ca-certificates/{{kubernetes_label}}-ca.crt
+  notify: "update certs debian"
+
+
+- name: Copy others CA
+  copy:
+    src: "{{item}}"
+    dest: /usr/local/share/ca-certificates/
+  notify: "update certs debian"
+  with_fileglob:
+    - "{{GLOBAL_CACHE_PATH}}/etc/privatecerts/*.crt"
+

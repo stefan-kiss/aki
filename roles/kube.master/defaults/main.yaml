@@ -1,0 +1,2 @@
+KUBECONFIG: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/users/admin.localhost.conf"
+PATH: "{{LOCAL_BIN_PATH}}:{{ ansible_env.PATH }}"

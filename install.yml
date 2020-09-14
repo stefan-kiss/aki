@@ -1,0 +1,77 @@
+---
+
+- name: Local init
+  hosts: localhost
+  gather_facts: False
+  become: false
+  vars:
+    ansible_connection: local
+  vars_files:
+    - clusters/defaults/addons.yml
+    - clusters/defaults/cluster.yml
+    - clusters/defaults/components.yml
+  roles:
+    - { role: common.facts, tags: ["common.facts"] }
+    - { role: init.local, tags: ["init.local"] }
+
+- name: Gather facts
+  hosts: kube:service
+  gather_facts: False
+  tasks:
+    - name: Gather minimal facts
+      setup:
+        gather_subset: '!all'
+    - name: Gather necessary facts
+      setup:
+        gather_subset: '!all,!min,network,hardware'
+        filter: "{{ item }}"
+      loop:
+        - ansible_distribution_major_version
+        - ansible_default_ipv4
+        - ansible_all_ipv4_addresses
+        - ansible_memtotal_mb
+        - ansible_swaptotal_mb
+
+- hosts: service
+  gather_facts: False
+  roles:
+    - { role: common.facts, tags: ["common.facts"] }
+    - { role: common.sys, tags: ["common.sys"] }
+    - { role: common.kube, tags: ["common.sys"] }
+    - { role: kube.service, tags: ["kube.service"] }
+    - { role: common.dns, tags: ["common.dns"] }
+  vars_files:
+    - clusters/defaults/addons.yml
+    - clusters/defaults/cluster.yml
+    - clusters/defaults/components.yml
+
+- hosts: kube
+  gather_facts: False
+  roles:
+    - { role: common.facts, tags: ["common.facts"] }
+    - { role: common.sys, tags: ["common.sys"] }
+    - { role: common.kube, tags: ["common.kube"] }
+    - { role: common.dns, tags: ["common.dns"] }
+  vars_files:
+    - clusters/defaults/addons.yml
+    - clusters/defaults/cluster.yml
+    - clusters/defaults/components.yml
+
+- hosts: etcd
+  gather_facts: False
+  roles:
+    - { role: kube.etcd, tags: ["kube.etcd"] }
+  vars_files:
+    - clusters/defaults/addons.yml
+    - clusters/defaults/cluster.yml
+    - clusters/defaults/components.yml
+
+- hosts: node
+  gather_facts: False
+  roles:
+    - { role: kube.node, tags: ["kube.master"] }
+  vars_files:
+    - clusters/defaults/addons.yml
+    - clusters/defaults/cluster.yml
+    - clusters/defaults/components.yml
+

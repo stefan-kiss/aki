@@ -1,0 +1,47 @@
+---
+- name: etcd directories
+  file:
+    path: "{{item}}"
+    state: directory
+    mode: 0644
+  loop:
+    - /etc/kubernetes/pki/etcd
+    - /var/lib/etcd
+
+- name: copy ca
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/etcd/{{item}}"
+    dest: "/etc/kubernetes/pki/etcd/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - ca.crt
+    - ca.key
+
+- name: copy certs
+  copy:
+    src: "{{NODES_CACHE_PATH}}/{{inventory_hostname}}/etc/kubernetes/pki/etcd/{{item}}"
+    dest: "/etc/kubernetes/pki/etcd/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - server.crt
+    - server.key
+    - peer.crt
+    - peer.key
+    - etcd-healthcheck-client.crt
+    - etcd-healthcheck-client.key
+
+- name: set initial etcd cluster
+  set_fact:
+    initial_etcd_cluster: "{% set comma = joiner(',') %}{% for item in groups['etcd'] %}{{comma()}}{{item}}=https://{{hostvars[item]['private_ip']}}:2380{% endfor %}"
+
+- name: static etcd pod
+  template:
+    src: "etc/kubernetes/manifests/etcd.yaml.j2"
+    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    mode: 0644
+    owner: root
+    group: root

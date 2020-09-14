@@ -1,0 +1,24 @@
+- name: check resolv.conf
+  stat:
+    path: /etc/resolv.conf
+  register: resolv
+
+- name: remove resolv.conf link
+  file:
+    path: /etc/resolv.conf
+    state: absent
+  when: resolv.stat.exists and resolv.stat.islnk
+
+- name: resolv.conf
+  template:
+    src: etc/resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: make sure systemd-resolved is stopped
+  systemd:
+    name: systemd-resolved
+    state: started
+    enabled: no

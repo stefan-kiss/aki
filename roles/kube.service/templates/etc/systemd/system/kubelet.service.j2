@@ -1,0 +1,25 @@
+#jinja2: lstrip_blocks: 'True'
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/kubernetes/kubernetes
+After=containerd.service
+Requires=containerd.service
+
+[Service]
+ExecStart=/usr/local/bin/kubelet \
+  --container-runtime=remote \
+  --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \
+  --image-gc-high-threshold=50 \
+  --image-gc-low-threshold=40 \
+  --image-pull-progress-deadline=2m \
+  --pod-infra-container-image=k8s.gcr.io/pause:3.1 \
+  --file-check-frequency 30s \
+  --max-pods 10 \
+  --pod-manifest-path=/etc/kubernetes/manifests \
+  --sync-frequency 30s
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

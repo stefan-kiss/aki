@@ -1,0 +1,5 @@
+# managed by ansible
+
+{% for host in groups['service'] %}
+nameserver {{ hostvars[host]['private_ip'] }}
+{% endfor %}

@@ -1,0 +1,17 @@
+---
+
+
+- name: get CA
+  set_fact: ca="{{ lookup('file',ca_read_base + ca_path) }}"
+      
+- name: get CLIENT CERT
+  set_fact: client_cert="{{ lookup('file',read_base + client_cert_path) }}"
+
+- name: get CLIENT KEY
+  set_fact: client_key="{{ lookup('file',read_base + client_key_path ) }}"
+
+- name: "{{outfile}}.conf"
+  template:
+      src: "kube.conf.j2"
+      dest: "{{write_base}}/{{outfile}}.conf"
+      mode: 0644

@@ -1,0 +1,80 @@
+---
+- name: Haproxy config directory
+  file:
+    path: /etc/haproxy
+    state: directory
+
+- name: Privete certs directory
+  file:
+    path: /etc/privatecerts
+    state: directory
+
+- name: Upload certs from cache
+  synchronize:
+    src: "{{ GLOBAL_CACHE_PATH }}/etc/privatecerts/./"
+    dest: /etc/privatecerts
+    mode: push
+    archive: false
+    checksum: true
+    times: no
+    delete: no
+    recursive: yes
+    group: no
+    owner: no
+    use_ssh_args: true
+
+- name: Assemble from fragments from a directory
+  assemble:
+    src: /etc/privatecerts
+    dest: /etc/haproxy/crt.pem
+    remote_src: yes
+
+- name: template /etc/haproxy/haproxy.cfg
+  template:
+    src: etc/haproxy/haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Haproxy static pod
+  template:
+    src: etc/kubernetes/manifests/haproxy.yaml.j2
+    dest: /etc/kubernetes/manifests/haproxy.yaml
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Dnsmasq static pod
+  template:
+    src: etc/kubernetes/manifests/dnsmasq.yaml.j2
+    dest: /etc/kubernetes/manifests/dnsmasq.yaml
+    owner: root
+    group: root
+    mode: 0644
+
+- name: template /etc/systemd/system/kubelet.service
+  template:
+    src: etc/systemd/system/kubelet.service.j2
+    dest: /etc/systemd/system/kubelet.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart kubelet"
+
+- name: make sure all services are up
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes
+
+- name: Wait untill dns is working locally
+  shell: dig @{{private_ip}} {{inventory_hostname}}
+  register: output
+  until: not output.failed
+  retries: 30
+  delay: 5
+  ignore_errors: true
+  changed_when: false
+  vars:
+    ansible_command_timeout: 10

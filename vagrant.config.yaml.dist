@@ -1,0 +1,51 @@
+---
+# currently only generic/ubuntu2004 is supported
+distro: generic/ubuntu2004
+
+# options:
+# - single: single node with all components.
+#   master taints are disabled.
+#   etcd is considered automaticaly as stacked
+#   the single node also has the bastion role 
+# - multi: multi individual masters/nodes
+#   number of nodes is controlled by the num attribute of each type
+#   etcd servers are installed depending on etcd_mode configuration
+#   a bastion server is installed separatley
+#
+nodes_mode: multi
+
+# options: 
+# - external: individual vm(s) are created for etcd servers
+#   number is controlled by the num attribute
+# - stacked: no servers are provisioned for etcd. 
+#   the etcd servers stay on the master nodes and their number matches the master nodes number
+etcd_mode: stacked
+
+subnet: 10.250.0.0/24
+domain: kubernetes.local
+ip_offset: 10
+
+master:
+  cpu: 2
+  mem: 2048
+  num: 1
+node:
+  cpu: 2
+  mem: 2048
+  num: 1
+service:
+  cpu: 1
+  mem: 1024
+  ports:
+    - 6443
+    - 1080
+singlenode:
+  cpu: 4
+  mem: 12288
+  ports:
+    - 6443
+    - 1080
+etcd:
+  cpu: 2
+  mem: 1024
+  num: 2

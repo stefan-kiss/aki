@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    component: haproxy
+  name: haproxy
+  namespace: kube-system
+spec:
+  containers:
+  - image: haproxy:1.8-alpine
+    hostNetwork: true
+    imagePullPolicy: IfNotPresent
+    name: haproxy
+    resources:
+      requests:
+        cpu: 250m
+    volumeMounts:
+    - mountPath: /usr/local/etc/haproxy
+      name: haproxy-config
+      readOnly: true
+  hostNetwork: true
+  priorityClassName: system-cluster-critical
+  volumes:
+  - hostPath:
+      path: /etc/haproxy
+      type: DirectoryOrCreate
+    name: haproxy-config

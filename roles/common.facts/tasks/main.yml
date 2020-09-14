@@ -1,0 +1,34 @@
+- name: set cache path
+  set_fact:
+    CACHE_PATH: "{{playbook_dir}}/cache/{{ cluster }}"
+    cacheable: yes
+
+- name: set cache path
+  set_fact:
+    SYSTEM_CACHE_PATH: "{{playbook_dir}}/cache/{{ cluster }}/system"
+    cacheable: yes
+
+- name: set cache path
+  set_fact:
+    GLOBAL_CACHE_PATH: "{{playbook_dir}}/cache/{{ cluster }}/system/global"
+    cacheable: yes
+
+- name: set cache path
+  set_fact:
+    NODES_CACHE_PATH: "{{playbook_dir}}/cache/{{ cluster }}/system/nodes"
+    cacheable: yes
+
+- name: set cache path
+  set_fact:
+    DOWNLOADER_CACHE_PATH: "{{playbook_dir}}/cache/downloader-cache"
+    cacheable: yes
+  
+- name: set subroles path
+  set_fact:
+    SUBROLE_PATH: "{{playbook_dir}}/subroles"
+    cacheable: yes
+
+- name: set local bin path
+  set_fact:
+    LOCAL_BIN_PATH: "{{playbook_dir}}/bin"
+    cacheable: yes

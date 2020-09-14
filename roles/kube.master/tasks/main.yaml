@@ -1,0 +1,226 @@
+---
+
+- name: set initial etcd cluster
+  set_fact:
+    etcd_cluster: "{% set comma = joiner(',') %}{% for item in groups['etcd'] %}{{comma()}}https://{{hostvars[item]['private_ip']}}:2379{% endfor %}"
+
+
+
+- name: copy ca
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/{{item}}"
+    dest: "/etc/kubernetes/pki/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - ca.crt
+    - front-proxy-ca.crt
+
+
+- name: copy ca
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/{{item}}"
+    dest: "/etc/kubernetes/pki/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - ca.crt
+
+- name: copy certs kubelet
+  copy:
+    src: "{{ NODES_CACHE_PATH }}/{{inventory_hostname}}/var/lib/kubelet/pki/{{item}}"
+    dest: "/var/lib/kubelet/pki"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - kubelet.crt
+    - kubelet.key
+  notify: "restart kubelet"
+
+
+- name: copy kubelet kubeconfig
+  copy:
+    src: "{{ NODES_CACHE_PATH }}/{{inventory_hostname}}/etc/kubernetes/kubelet.conf"
+    dest: "/etc/kubernetes/kubelet.conf"
+    owner: root
+    group: root
+    mode: 0600
+  notify: "restart kubelet"
+
+
+- name: template /var/lib/kubelet/kubelet-config.yaml
+  template:
+    src: var/lib/kubelet/config.yaml.j2
+    dest: /var/lib/kubelet/config.yaml
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart kubelet"
+
+
+- name: Set Taints Generic
+  set_fact:
+    NODE_TAINTS: []
+
+- name: Set Taints Master
+  set_fact:
+    NODE_TAINTS: [ node-role.kubernetes.io/master:NoSchedule ]
+  when: inventory_hostname in groups.master
+
+- name: Set Taints Master
+  set_fact:
+    NODE_TAINTS: [ node-role.kubernetes.io/service:NoSchedule ]
+  when: inventory_hostname in groups.service
+
+- name: template /etc/systemd/system/kubelet.service
+  template:
+    src: etc/systemd/system/kubelet.service.j2
+    dest: /etc/systemd/system/kubelet.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: "restart kubelet"
+  vars:
+    taints: "{{NODE_TAINTS}}"
+
+- name: make sure all services are up
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes
+
+- name: copy apiserver certs
+  copy:
+    src: "{{NODES_CACHE_PATH}}/{{inventory_hostname}}/etc/kubernetes/pki/{{item}}"
+    dest: "/etc/kubernetes/pki/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - apiserver-kubelet-client.crt
+    - apiserver-kubelet-client.key
+    - apiserver.crt
+    - apiserver.key
+    - front-proxy-client.crt
+    - front-proxy-client.key
+    - apiserver-etcd-client.crt
+    - apiserver-etcd-client.key
+
+- name: copy encryption config
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/{{item}}"
+    dest: "/etc/kubernetes/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - encryption-config.yaml
+
+
+- name: copy serviceaccount certs
+  copy:
+    src: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/pki/{{item}}"
+    dest: "/etc/kubernetes/pki/{{item}}"
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - sa.key
+    - sa.pub
+
+- name: copy kube config
+  copy:
+    src: "{{NODES_CACHE_PATH}}/{{inventory_hostname}}/etc/kubernetes/{{item}}"
+    dest: /etc/kubernetes/{{item}}
+    owner: root
+    group: root
+    mode: 0600
+  loop:
+    - controller-manager.conf
+    - scheduler.conf
+
+- name: audit.yaml
+  template:
+    src: etc/kubernetes/audit.yaml.j2
+    dest: /etc/kubernetes/audit.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: template /etc/kubernetes/manifests/{{component}}
+  template:
+    src: etc/kubernetes/manifests/{{component}}.yaml.j2
+    dest: /etc/kubernetes/manifests/{{component}}.yaml
+    owner: root
+    group: root
+    mode: 0644
+  loop:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+  loop_control:
+    loop_var: component
+
+
+- name: Wait untill all kubernetes-apiserver finish starting up
+  shell: kubectl \
+    wait \
+    --timeout=60s \
+    --for=condition=ready \
+    -n kube-system \
+    pod/kube-apiserver-{{ansible_host}}
+  register: output
+  until: not output.failed
+  retries: 30
+  delay: 10
+  ignore_errors: true
+  delegate_to: localhost
+  changed_when: false
+  environment:
+    PATH: "{{PATH}}"
+    KUBECONFIG: "{{KUBECONFIG}}"
+  become: false
+  debugger: on_failed
+
+- name: Label Masters Role
+  shell: kubectl label node --overwrite \
+    {{ansible_host}} \
+    node-role.kubernetes.io/master=
+  register: kubectl_label_output
+  changed_when: '"not labeled" not in kubectl_label_output.stdout'
+  delegate_to: localhost
+  environment:
+    PATH: "{{PATH}}"
+    KUBECONFIG: "{{KUBECONFIG}}"
+  become: false
+  debugger: on_failed
+
+- name: Label Masters
+  shell: kubectl label node --overwrite \
+    {{ansible_host}} \
+    node.kubernetes.io/master=
+  register: kubectl_label_output
+  changed_when: '"not labeled" not in kubectl_label_output.stdout'
+  delegate_to: localhost
+  environment:
+    PATH: "{{PATH}}"
+    KUBECONFIG: "{{KUBECONFIG}}"
+  become: false
+  debugger: on_failed
+
+- name: Taint Masters
+  shell: kubectl taint node --overwrite \
+    {{ansible_host}} \
+    node-role.kubernetes.io/master=:NoSchedule
+  register: kubectl_label_output
+  changed_when: false
+  delegate_to: localhost
+  when: kube_skip_taints is not true
+  environment:
+    PATH: "{{PATH}}"
+    KUBECONFIG: "{{KUBECONFIG}}"
+  become: false
+  debugger: on_failed

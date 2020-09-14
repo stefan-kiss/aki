@@ -1,0 +1,13 @@
+---
+- name: restart containerd
+  systemd:
+    name: "containerd"
+    state: restarted
+    enabled: yes
+    daemon_reload: True
+  listen: "restart containerd"
+
+- name: update certs
+  command: update-ca-certificates
+  listen: "update certs"
+  notify: "restart containerd"

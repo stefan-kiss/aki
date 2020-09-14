@@ -1,0 +1,30 @@
+#jinja2: lstrip_blocks: 'True'
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/kubernetes/kubernetes
+After=containerd.service
+Requires=containerd.service
+
+[Service]
+ExecStart=/usr/local/bin/kubelet \
+  --config=/var/lib/kubelet/config.yaml \
+  --container-runtime=remote \
+  --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \
+  --image-gc-high-threshold=50 \
+  --image-gc-low-threshold=40 \
+  --image-pull-progress-deadline=2m \
+  --pod-infra-container-image=k8s.gcr.io/pause:3.1 \
+  --kubeconfig=/etc/kubernetes/kubelet.conf \
+  --network-plugin=cni \
+  --register-node=true \
+  --hostname-override={{inventory_hostname}} \
+  --node-ip={{private_ip}} \
+  {% if NODE_TAINTS|length > 1  %}
+  --register-with-taints=node-role.kubernetes.io/master:NoSchedule \
+  {% endif %}
+  --v=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

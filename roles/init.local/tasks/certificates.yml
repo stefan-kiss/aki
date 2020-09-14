@@ -1,0 +1,175 @@
+---
+- name: Generate external certificates
+  shell: "{{ LOCAL_BIN_PATH }}/gencrt \
+    -ca \
+    -dst={{ SYSTEM_CACHE_PATH }}
+    -host='{{ hostnames | flatten | sort| unique |join(',') }}'"
+  args:
+    creates: "{{SYSTEM_CACHE_PATH}}/global/etc/privatecerts/cert.key"
+  register: gencrt
+  changed_when: false
+  vars:
+    hostnames:
+      - "127.0.0.1"
+      - "{{kubernetes_api_dns}}"
+      - "{{kubernetes_ingress_dns}}"
+      - "*.{{kubernetes_ingress_dns}}"
+- name: debug
+  debug:
+    msg: "{{gencrt}}"
+
+- name: debug
+  debug:
+    msg: "-apisans={{kubernetes_api_dns}}/{{ kubernetes_cluster_ip_cidr|ipaddr(1)|ipaddr('address') }},{{kubernetes_api_additional_ips|join(',')}}"
+
+- name: debug
+  debug:
+    msg: "-masters={% set comma = joiner(',') %}{% for server in groups['node'] %}{{comma()}}{{server}}/{{hostvars[server]['private_ip']}}{% endfor %}"
+
+- name: debug
+  debug:
+    msg: "-workers={% set comma = joiner(',') %}{% for server in groups['etcd'] %}{{comma()}}{{server}}/{{hostvars[server]['private_ip']}}{% endfor %}"
+
+- name: debug
+  debug:
+    msg: "-etcd={% set comma = joiner(',') %}{% for server in groups['etcd'] %}{{comma()}}{{server}}/{{hostvars[server]['private_ip']}}{% endfor %}"
+
+- name: Generate Kubernetes System certificates
+  shell: "{{ LOCAL_BIN_PATH }}/genkubessl \
+    -src {{ SYSTEM_CACHE_PATH }} \
+    -dst {{ SYSTEM_CACHE_PATH }} \
+    kubecerts \
+    -apisans {{kubernetes_api_dns}}/{{ kubernetes_cluster_ip_cidr|ipaddr(1)|ipaddr('address') }},{{kubernetes_api_additional_ips|join(',')}} \
+    -masters {% set comma = joiner(',') %}{% for server in masters %}{{comma()}}{{server}}/{{hostvars[server]['private_ip']}}{% endfor %} \
+    -workers {% set comma = joiner(',') %}{% for server in workers %}{{comma()}}{{server}}/{{hostvars[server]['private_ip']}}{% endfor %} \
+    -etcd {% set comma = joiner(',') %}{% for server in etcd %}{{comma()}}{{server}}/{{hostvars[server]['private_ip']}}{% endfor %}"
+  register: genkubessl
+  changed_when: "genkubessl.stdout|regex_search('GLOBAL_CHANGED: TRUE')"
+  vars:
+    masters: "{{ groups[ 'master' ] }}"
+    workers: "{{ groups[ 'node' ] | union(groups['service']) }}"
+    etcd: "{{ groups[ 'etcd' ] }}"
+
+- name: master kubelet kubeconfigs
+  include_role:
+    name: subroles/genkubeconfig
+  loop: "{{groups['master'] }}"
+  loop_control:
+    loop_var: service
+  vars:
+    ca_read_base: "{{GLOBAL_CACHE_PATH}}"
+    read_base: "{{NODES_CACHE_PATH}}/{{service}}"
+    write_base: "{{NODES_CACHE_PATH}}/{{service}}/etc/kubernetes"
+    outfile: "kubelet"
+    server: "https://{{kubernetes_api_dns}}:6443"
+    username: "system:node:{{service}}"
+    client_cert_path: /etc/kubernetes/pki/kubelet.crt
+    client_key_path: /etc/kubernetes/pki/kubelet.key
+
+- name: nodes kubelet kubeconfigs
+  include_role:
+    name: subroles/genkubeconfig
+  loop: "{{groups['master']|union(groups['node'])}}"
+  loop_control:
+    loop_var: service
+  vars:
+    ca_read_base: "{{GLOBAL_CACHE_PATH}}"
+    read_base: "{{NODES_CACHE_PATH}}/{{service}}"
+    write_base: "{{NODES_CACHE_PATH}}/{{service}}/etc/kubernetes"
+    outfile: "kubelet"
+    server: "https://{{kubernetes_api_dns}}:6443"
+    username: "system:node:{{service}}"
+    client_cert_path: /etc/kubernetes/pki/kubelet.crt
+    client_key_path: /etc/kubernetes/pki/kubelet.key
+
+- name: service kubelet kubeconfigs
+  include_role:
+    name: subroles/genkubeconfig
+  loop: "{{groups['service']}}"
+  loop_control:
+    loop_var: service
+  vars:
+    ca_read_base: "{{GLOBAL_CACHE_PATH}}"
+    read_base: "{{NODES_CACHE_PATH}}/{{service}}"
+    write_base: "{{NODES_CACHE_PATH}}/{{service}}/etc/kubernetes"
+    outfile: "kubelet"
+    server: "https://{{kubernetes_api_dns}}:6443"
+    username: "system:node:{{service}}"
+    client_cert_path: /etc/kubernetes/pki/kubelet.crt
+    client_key_path: /etc/kubernetes/pki/kubelet.key
+
+- name: nodes controller-manager kubeconfigs
+  include_role:
+    name: subroles/genkubeconfig
+  loop: "{{groups['master']}}"
+  loop_control:
+    loop_var: service
+  vars:
+    ca_read_base: "{{GLOBAL_CACHE_PATH}}"
+    read_base: "{{NODES_CACHE_PATH}}/{{service}}"
+    write_base: "{{NODES_CACHE_PATH}}/{{service}}/etc/kubernetes"
+    outfile: "controller-manager"
+    server: "https://{{kubernetes_api_dns}}:6443"
+    username: "system:controller-manager"
+    client_cert_path: /etc/kubernetes/pki/controller-manager.crt
+    client_key_path: /etc/kubernetes/pki/controller-manager.key
+
+- name: nodes scheduler kubeconfigs
+  include_role:
+    name: subroles/genkubeconfig
+  loop: "{{groups['master']}}"
+  loop_control:
+    loop_var: service
+  vars:
+    ca_read_base: "{{GLOBAL_CACHE_PATH}}"
+    read_base: "{{NODES_CACHE_PATH}}/{{service}}"
+    write_base: "{{NODES_CACHE_PATH}}/{{service}}/etc/kubernetes"
+    outfile: "scheduler"
+    server: "https://{{kubernetes_api_dns}}:6443"
+    username: "system:kube-scheduler"
+    client_cert_path: /etc/kubernetes/pki/scheduler.crt
+    client_key_path: /etc/kubernetes/pki/scheduler.key
+
+- name: users dir
+  file:
+    state: directory
+    path: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/users"
+
+- name: localhost admin kubeconfig
+  include_role:
+    name: subroles/genkubeconfig
+  vars:
+    service: admin
+    outfile: "admin.localhost"
+    write_base: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/users"
+    server: "https://127.0.0.1:6443"
+    username: "admin"
+    client_cert_path: /etc/kubernetes/pki/admin.crt
+    client_key_path: /etc/kubernetes/pki/admin.key
+
+- name: admin kubeconfig
+  include_role:
+    name: subroles/genkubeconfig
+  vars:
+    service: admin
+    outfile: "admin"
+    write_base: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/users"
+    server: "https://{{kubernetes_api_dns}}:6443"
+    username: "admin"
+    client_cert_path: /etc/kubernetes/pki/admin.crt
+    client_key_path: /etc/kubernetes/pki/admin.key
+
+
+- name: execute shell with generate random
+  shell: head -c 32 /dev/urandom | base64 > encryption.key
+  args:
+    chdir: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes"
+    creates: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/encryption.key"
+
+- name: template {{GLOBAL_CACHE_PATH}}/etc/kubernetes/encryption-config.yaml
+  template:
+    src: "encryption-config.yaml.j2"
+    dest: "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/encryption-config.yaml"
+    mode: 0600
+  with_file:
+    - "{{GLOBAL_CACHE_PATH}}/etc/kubernetes/encryption.key"

@@ -1,0 +1,96 @@
+global
+    log         127.0.0.1 local0
+
+    pidfile     /var/run/haproxy.pid
+    maxconn     1024
+    daemon
+
+    # turn on stats unix socket
+    stats socket /var/run/stats
+
+    # utilize system-wide crypto-policies
+    # ssl-default-bind-ciphers PROFILE=SYSTEM
+    # ssl-default-server-ciphers PROFILE=SYSTEM
+
+    #---------------------------------------------------------------------
+    # common defaults that all the 'listen' and 'backend' sections will
+    # use if not designated in their block
+    #---------------------------------------------------------------------
+    defaults
+    mode                    http
+    log                     global
+    option                  httplog
+    option                  dontlognull
+    option http-server-close
+    option forwardfor       except 127.0.0.0/8
+    option                  redispatch
+    retries                 3
+    timeout http-request    10s
+    timeout queue           1m
+    timeout connect         10s
+    timeout client          1m
+    timeout server          1m
+    timeout http-keep-alive 10s
+    timeout check           10s
+    maxconn                 3000
+
+frontend front_kapi
+    log global
+    mode tcp
+    bind *:6443
+    default_backend back_kapi
+
+frontend front_http
+    log global
+    mode http
+    bind *:80
+    ## figure out which one to use
+    default_backend back_http
+
+frontend front_https
+    log global
+    mode http
+    bind *:443 ssl crt /usr/local/etc/haproxy/crt.pem
+    default_backend back_http
+    http-request set-header X-Forwarded-Proto https
+    http-request set-header X-Forwarded-Port 443
+
+
+listen health_check_http_url
+    bind :9090
+    mode http
+    monitor-uri /healthz
+    option      dontlognull
+
+
+backend back_kapi
+   log global
+   mode tcp
+   balance roundrobin
+{% for host in groups['master'] %}
+   server {{ host }} {{ hostvars[host]['private_ip'] }}:6443 check inter 1s fall 5 rise 10
+{% endfor %}
+   timeout connect        1s
+   timeout server         600s
+   timeout client         600s
+
+
+backend back_http
+  log global
+  mode http
+  balance roundrobin
+{% for host in groups['node'] %}
+  server {{ host }} {{ hostvars[host]['private_ip'] }}:80 check inter 5s fall 3 rise 3
+{% endfor %}
+  timeout connect        1s
+  timeout server         10s
+
+backend back_https
+  log global
+  mode http
+  balance roundrobin
+{% for host in groups['node'] %}
+  server {{ host }} {{ hostvars[host]['private_ip'] }}:443 check ssl verify none inter 5s fall 3 rise 3
+{% endfor %}
+  timeout connect        1s
+  timeout server         10s
