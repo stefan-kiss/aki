@@ -194,14 +194,6 @@ Vagrant.configure(2) do |config|
                                    "--ssh-extra-args=-Fclusters/vagrant/ssh.config",
                                    "--extra-vars=@clusters/vagrant/vars.yml"
           ]
-          #ansible.host_vars = host_vars
-          #ansible.tags = ['download']
-          # ansible.groups = {
-          #   "etcd" => ["#{$instance_name_prefix}-[1:#{$etcd_instances}]"],
-          #   "kube-master" => ["#{$instance_name_prefix}-[1:#{$kube_master_instances}]"],
-          #   "kube-node" => ["#{$instance_name_prefix}-[1:#{$kube_node_instances}]"],
-          #   "k8s-cluster:children" => ["kube-master", "kube-node"],
-          # }
         end
 
       end
